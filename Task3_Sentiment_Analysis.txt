@@ -1,0 +1,37 @@
+import nltk
+import pandas as pd
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.model_selection import train_test_split
+from sklearn.naive_bayes import MultinomialNB
+from sklearn.metrics import classification_report, accuracy_score
+
+# Скачиваем датасет
+nltk.download('movie_reviews')
+from nltk.corpus import movie_reviews
+
+# Подготовка данных
+documents = [(list(movie_reviews.words(fileid)), category)
+             for category in movie_reviews.categories()
+             for fileid in movie_reviews.fileids(category)]
+
+df = pd.DataFrame(documents, columns=['words', 'sentiment'])
+df['text'] = df['words'].apply(lambda x: " ".join(x))
+df['label'] = df['sentiment'].map({'pos': 1, 'neg': 0})
+print("Данные загружены. Примеры:")
+display(df[['text', 'sentiment']].head(3))
+
+# Векторизация (TF-IDF)
+vectorizer = TfidfVectorizer(max_features=3000, stop_words='english')
+X = vectorizer.fit_transform(df['text'])
+y = df['label']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Обучение модели Naive Bayes
+model = MultinomialNB()
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+
+print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
+print("Classification Report:")
+print(classification_report(y_test, y_pred, target_names=['Negative', 'Positive']))
