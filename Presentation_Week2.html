@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Презентация: AI & ML Case Studies</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- Reveal.js core CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+    <!-- Выбираем красивую современную тему -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/theme/black.min.css" id="theme">
+    <style>
+        .reveal h1, .reveal h2, .reveal h3 {
+            text-transform: none; /* Оставляем нормальный регистр */
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        }
+        .reveal p, .reveal li {
+            font-size: 0.8em;
+            text-align: left;
+        }
+        .highlight {
+            color: #42b983; /* Акцентный зеленый цвет */
+        }
+    </style>
+</head>
+<body>
+    <div class="reveal">
+        <div class="slides">
+            
+            <!-- Слайд 1: Титульный -->
+            <section>
+                <h1 class="highlight">AI & Machine Learning</h1>
+                <h3>Week 2: Case Studies Portfolio</h3>
+                <p style="text-align: center;">Анализ качества воздуха, NLP и выявление мошенничества</p>
+                <br>
+                <p style="text-align: center; font-size: 0.6em; color: gray;">Команда: Абзал, Амир, Диас, Темирхан & Медет </p>
+            </section>
+
+            <!-- Слайд 2: Обзор -->
+            <section>
+                <h2>Обзор Проекта</h2>
+                <p>Мы выполнили 4 прикладные задачи, покрывающие полный цикл Data Science:</p>
+                <ul>
+                    <li><span class="highlight">Task 1:</span> Экология — Exploratory Data Analysis (EDA) для г. Павлодар</li>
+                    <li><span class="highlight">Task 2:</span> Прогнозирование — Machine Learning для предсказания выбросов</li>
+                    <li><span class="highlight">Task 3:</span> Обработка текста — NLP Pipeline для анализа тональности</li>
+                    <li><span class="highlight">Task 4:</span> Финансовая безопасность — Работа с Imbalanced Data</li>
+                </ul>
+            </section>
+
+            <!-- Слайд 3: Task 1 -->
+            <section>
+                <section>
+                    <h2><span class="highlight">Task 1:</span> Качество воздуха в Павлодаре</h2>
+                    <p><strong>Цель:</strong> Оценить исторический уровень загрязнения воздуха.</p>
+                    <ul>
+                        <li>Оптимизация данных: из 3 ГБ сырых данных отфильтрованы только CSV файлы Павлодара (PM2.5, NO2, SO2).</li>
+                        <li>Временные ряды (Time-series) сгруппированы по дням.</li>
+                        <li>Выявлены сезонные пики в период отопительного сезона.</li>
+                        <li>Рассчитаны дни превышения нормативов ВОЗ (15 µg/m³).</li>
+                    </ul>
+                </section>
+            </section>
+
+            <!-- Слайд 4: Task 2 -->
+            <section>
+                <h2><span class="highlight">Task 2:</span> ML-Прогнозирование выбросов</h2>
+                <p><strong>Цель:</strong> Создать модель предсказания уровня PM2.5 на следующий день.</p>
+                <ul>
+                    <li>Модель: <b>Linear Regression</b> (Линейная регрессия).</li>
+                    <li>Инженерия признаков (Feature Engineering): использование "лагов" — исторического загрязнения за предыдущие 1-2 дня.</li>
+                    <li>Модель способна заранее предупреждать о "грязных" днях, что критично для жителей промышленных городов.</li>
+                </ul>
+            </section>
+
+            <!-- Слайд 5: Task 3 -->
+            <section>
+                <h2><span class="highlight">Task 3:</span> NLP Анализ тональности</h2>
+                <p><strong>Цель:</strong> Автоматическая классификация текстов (Позитив / Негатив).</p>
+                <ul>
+                    <li>Набор данных: Открытый датасет Movie Reviews (NLTK).</li>
+                    <li>Предобработка: векторизация текста с помощью <b>TF-IDF</b>.</li>
+                    <li>Алгоритм: <b>Naive Bayes</b> (MultinomialNB).</li>
+                    <li>Результат: Высокая точность, применимость архитектуры для анализа отзывов на приложения банков и E-commerce.</li>
+                </ul>
+            </section>
+
+            <!-- Слайд 6: Task 4 -->
+            <section>
+                <h2><span class="highlight">Task 4:</span> Выявление мошенничества</h2>
+                <p><strong>Цель:</strong> Поиск фрода в банковских транзакциях.</p>
+                <ul>
+                    <li>Проблема: Жесткий дисбаланс данных (99% легальных транзакций, 1% мошенников).</li>
+                    <li>Решение: Использование алгоритма <b>Random Forest</b> с автоматической балансировкой весов (class_weight='balanced').</li>
+                    <li>Метрики: Фокус смещен с общей точности (Accuracy) на матрицу ошибок (Confusion Matrix) для минимизации ложных блокировок легальных клиентов.</li>
+                </ul>
+            </section>
+
+            <!-- Слайд 7: Заключение -->
+            <section>
+                <h2>Заключение</h2>
+                <ul>
+                    <li>Успешно применены методы EDA, Регрессии, NLP и классификации ансамблями.</li>
+                    <li>Проект оптимизирован: размер директории сокращен в десятки раз.</li>
+                    <li>Код повністю изолирован в виртуальной среде (venv) и готов к воспроизведению.</li>
+                </ul>
+                <br>
+                <h3 class="highlight">Спасибо за внимание!</h3>
+            </section>
+
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            slideNumber: true,
+            transition: 'convex' // none/fade/slide/convex/concave/zoom
+        });
+    </script>
+</body>
+</html>

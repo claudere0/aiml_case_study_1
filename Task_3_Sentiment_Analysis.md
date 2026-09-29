@@ -1,53 +1,265 @@
 # Case Study Task 3: Sentiment Analysis of Social Media Data
+## Анализ тональности данных из социальных сетей
+
+**Курс:** CSE-2506M · **Данные:** NLTK Movie Reviews (встроенный датасет, скачивается автоматически)
+
+---
 
 ## 1. Background
-Social media platforms are rich sources of public opinion. Analyzing the sentiment of user-generated content (tweets, reviews, comments) allows businesses, policymakers, and researchers to understand public perception on various topics, products, or societal issues.
+
+Социальные сети и онлайн-платформы генерируют миллиарды текстовых сообщений ежедневно. Умение автоматически определять тональность (sentiment) текста — позитивный, негативный или нейтральный — является фундаментальной задачей обработки естественного языка (NLP). Эта технология используется компаниями для мониторинга репутации бренда, банками для анализа клиентских жалоб, а правительствами — для оценки общественного мнения о реформах.
+
+В данном кейсе мы построим полный NLP-пайплайн: от сырого текста до обученной модели классификации. Мы используем классический датасет кинокритик NLTK Movie Reviews (2000 документов, 50/50 positive/negative) — он достаточно мал для быстрого обучения, но достаточно сложен для демонстрации всех этапов NLP.
 
 ## 2. Objective of the Case Study
-Your task is to build a Natural Language Processing (NLP) pipeline to classify the sentiment (positive, negative, neutral) of text data from social media and extract actionable insights.
+
+Построить и сравнить несколько моделей классификации текста по тональности, провести анализ ошибок и извлечь полезные инсайты из текстовых данных.
+
+**Key objectives:**
+- Загрузить и исследовать корпус текстов (EDA для текста).
+- Выполнить полную предобработку текста (токенизация, лемматизация, удаление стоп-слов).
+- Сравнить **минимум 2 метода** векторизации: Bag-of-Words (CountVectorizer) и TF-IDF.
+- Обучить и сравнить **минимум 3 модели**: Naive Bayes, Logistic Regression, SVM.
+- Оценить модели с помощью Accuracy, Precision, Recall, F1-score и Confusion Matrix.
+- Провести анализ ошибок: какие тексты модель классифицирует неверно и почему.
+- Визуализировать ключевые слова для каждого класса (Word Cloud, Top Features).
 
 ## 3. Research Questions
-- What is the general sentiment of the public towards a specific topic, brand, or event?
-- Which machine learning/deep learning algorithms are most effective for sentiment classification?
-- How do sentiment trends change over time in response to real-world events?
-- What are the most common keywords associated with positive and negative sentiments?
+
+- Какие слова наиболее характерны для позитивных и негативных отзывов?
+- Какой метод векторизации (Bag-of-Words vs TF-IDF) даёт лучший результат?
+- Какая модель (Naive Bayes, Logistic Regression, SVM) показывает лучший F1-score?
+- Влияет ли длина текста (количество слов) на точность классификации?
+- Какие типы текстов модель классифицирует неверно? Есть ли в них ирония, смешанные чувства?
+- Как предобработка (с/без стоп-слов, с/без лемматизации) влияет на качество?
 
 ## 4. Data Requirements
-**Data to collect:**
-- Datasets from Kaggle (e.g., Sentiment140, Twitter US Airline Sentiment).
-- Text data scraped from Reddit or Twitter (if API access is available).
-- Labeled datasets for supervised learning (Text, Sentiment Label).
+
+### 4.1 Основной датасет
+
+| Параметр | Значение |
+|---|---|
+| **Источник** | `nltk.corpus.movie_reviews` |
+| **Размер** | 2 000 документов (файлов) |
+| **Классы** | `pos` (1 000 шт.), `neg` (1 000 шт.) |
+| **Язык** | Английский |
+| **Формат** | Списки слов (уже токенизированы на уровне слов) |
+| **Загрузка** | `nltk.download('movie_reviews')` — запускается автоматически в ноутбуке |
+
+### 4.2 Дополнительные ресурсы NLTK
+
+| Ресурс | Для чего | Команда загрузки |
+|---|---|---|
+| `stopwords` | Список стоп-слов английского языка | `nltk.download('stopwords')` |
+| `wordnet` | Лемматизация (приведение слов к начальной форме) | `nltk.download('wordnet')` |
+| `averaged_perceptron_tagger` | POS-теги (часть речи) для лемматизации | `nltk.download('averaged_perceptron_tagger')` |
 
 ## 5. Methodology
-### 5.1 Data Collection & Text Preprocessing
-- Remove stop words, URLs, mentions, and special characters.
-- Perform tokenization, stemming, or lemmatization.
-### 5.2 Feature Extraction & Modeling
-- Convert text to vectors (TF-IDF, Word2Vec, or BERT embeddings).
-- Train models like Logistic Regression, Naive Bayes, SVM, or LSTM.
-### 5.3 Evaluation & Visualization
-- Evaluate using Accuracy, Precision, Recall, and F1-score.
-- Visualize results using word clouds, sentiment distributions, and time-series plots.
+
+### 5.1 Data Loading & EDA (Разведочный анализ текста)
+
+**Шаги:**
+1. Загрузить корпус NLTK Movie Reviews.
+2. Собрать в DataFrame: колонки `text` (полный текст), `sentiment` (pos/neg), `label` (1/0).
+3. Рассчитать базовые статистики: длина текстов (в словах), баланс классов.
+4. Проверить, есть ли дубликаты.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 1 | Баланс классов (`value_counts`) | DataFrame | Подтвердить, что 50/50 |
+| Табл. 2 | Описательная статистика длины текстов | `describe()` | Среднее, медиана, max длина |
+| Рис. 1 | Гистограмма длины текстов по классам | `sns.histplot(hue='sentiment')` | Отличаются ли pos/neg по длине? |
+| Рис. 2 | Boxplot: длина текста vs sentiment | `sns.boxplot` | Визуальное сравнение |
+
+### 5.2 Text Preprocessing (Предобработка текста)
+
+**Шаги:**
+1. **Нижний регистр** — привести все слова к lowercase.
+2. **Удаление пунктуации и спецсимволов** — убрать всё, кроме букв.
+3. **Удаление стоп-слов** — убрать артикли, предлоги, местоимения (`the`, `a`, `is`, `it`...) с помощью `nltk.corpus.stopwords`.
+4. **Лемматизация** — привести слова к начальной форме (`running` → `run`, `better` → `good`) с помощью `WordNetLemmatizer`.
+5. Собрать очищенные тексты обратно в строки.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 3 | Примеры: сырой текст vs очищенный (3–5 примеров) | DataFrame | Демонстрация эффекта предобработки |
+| Рис. 3 | Столбчатая диаграмма: размер словаря до и после очистки | `plt.bar` | Количественный эффект предобработки |
+
+### 5.3 Text Visualization (Визуализация текста)
+
+**Шаги:**
+1. Подсчитать частоту слов для каждого класса (Counter).
+2. Построить Word Cloud для позитивных и негативных текстов.
+3. Построить Top-20 самых частых слов для каждого класса (bar chart).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Рис. 4 | Word Cloud: Positive Reviews | `WordCloud` | Визуальное восприятие позитивной лексики |
+| Рис. 5 | Word Cloud: Negative Reviews | `WordCloud` | Визуальное восприятие негативной лексики |
+| Рис. 6 | Top-20 слов в Positive (horizontal bar) | `plt.barh` | Ключевые позитивные слова |
+| Рис. 7 | Top-20 слов в Negative (horizontal bar) | `plt.barh` | Ключевые негативные слова |
+
+### 5.4 Feature Extraction (Векторизация)
+
+**Два метода:**
+
+| Метод | Библиотека | Параметры |
+|---|---|---|
+| **Bag-of-Words** | `CountVectorizer` | `max_features=5000`, `ngram_range=(1,2)` |
+| **TF-IDF** | `TfidfVectorizer` | `max_features=5000`, `ngram_range=(1,2)`, `sublinear_tf=True` |
+
+**Шаги:**
+1. Применить оба метода к очищенным текстам.
+2. Для каждого метода — разделить на Train (80%) / Test (20%) с `stratify=y`, `random_state=42`.
+
+### 5.5 Model Training (Обучение моделей)
+
+#### Модель 1: Multinomial Naive Bayes
+- Быстрый baseline для текстовой классификации.
+- Хорошо работает с Bag-of-Words.
+- `MultinomialNB(alpha=1.0)`.
+
+#### Модель 2: Logistic Regression
+- Линейная модель, хорошо работает с TF-IDF.
+- `LogisticRegression(max_iter=1000, C=1.0, random_state=42)`.
+
+#### Модель 3: Support Vector Machine (SVM)
+- `LinearSVC(max_iter=5000, random_state=42)`.
+- Одна из лучших моделей для текстовой классификации.
+
+**Всего обучаем 6 комбинаций:** 3 модели × 2 метода векторизации = 6 экспериментов.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 4 | Сводная таблица: модель × векторизация → Accuracy, F1 | DataFrame | Главная таблица сравнения |
+| Рис. 8 | Grouped bar chart: Accuracy по моделям и методам | `plt.bar` | Визуальное сравнение 6 комбинаций |
+
+### 5.6 Evaluation (Оценка лучшей модели)
+
+**Метрики:**
+- **Accuracy** — общая точность.
+- **Precision** — из тех, кого модель назвала «positive», сколько реально positive.
+- **Recall** — из реально positive, скольких модель нашла.
+- **F1-score** — гармоническое среднее Precision и Recall.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 5 | Classification Report (лучшая модель) | `classification_report` | Полная раскладка по классам |
+| Рис. 9 | Confusion Matrix (лучшая модель) | `sns.heatmap` | TP/FP/FN/TN |
+| Рис. 10 | ROC Curve (если модель даёт вероятности) | `plt.plot` | AUC-ROC для оценки разделимости |
+
+### 5.7 Feature Analysis (Анализ признаков модели)
+
+**Шаги:**
+1. Для Logistic Regression и LinearSVC — извлечь коэффициенты (`model.coef_`).
+2. Отсортировать: самые большие положительные коэффициенты = слова-маркеры Positive.
+3. Самые большие отрицательные коэффициенты = слова-маркеры Negative.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Рис. 11 | Top-15 слов с наибольшим положительным коэффициентом | `plt.barh` (зелёный) | Маркеры позитива в модели |
+| Рис. 12 | Top-15 слов с наибольшим отрицательным коэффициентом | `plt.barh` (красный) | Маркеры негатива в модели |
+
+### 5.8 Error Analysis (Анализ ошибок)
+
+**Шаги:**
+1. Найти все неправильно классифицированные тексты на тестовой выборке.
+2. Выделить ложноположительные (False Positives: negative → predicted positive) и ложноотрицательные (False Negatives: positive → predicted negative).
+3. Вручную прочитать 3–5 примеров каждого типа ошибки и объяснить, почему модель ошиблась (ирония, смешанные чувства, сарказм).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 6 | Примеры ложноположительных (3–5 текстов) | DataFrame | Понять, почему neg → pred pos |
+| Табл. 7 | Примеры ложноотрицательных (3–5 текстов) | DataFrame | Понять, почему pos → pred neg |
+| Рис. 13 | Распределение уверенности модели (predicted probability) | `sns.histplot` | Есть ли «неуверенные» предсказания вблизи 0.5? |
+
+### 5.9 Impact of Preprocessing (Влияние предобработки)
+
+**Эксперимент:** Обучить лучшую модель в 4 вариантах:
+1. Сырой текст (без очистки).
+2. Только нижний регистр + удаление пунктуации.
+3. + Удаление стоп-слов.
+4. + Лемматизация (полная предобработка).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 8 | Accuracy для каждого уровня предобработки | DataFrame | Количественный эффект каждого шага |
+| Рис. 14 | Bar chart: Accuracy vs уровень предобработки | `plt.bar` | Визуализация улучшения |
 
 ## 6. Expected Deliverables
-**A. Written Report (8–15 pages)**
-- Introduction, Literature Review, NLP Methods, Results, and Discussion.
-**B. Presentation (10–15 slides)**
-- Overview of the dataset, text processing steps, model performance, and insights.
-**C. Python Notebook / Code**
-- Complete pipeline for text preprocessing and sentiment classification.
+
+### A. Written Report (8–15 pages)
+Should include:
+- **Введение** — зачем нужен sentiment analysis, применения в бизнесе.
+- **Обзор литературы** — классические методы NLP vs deep learning (BERT), 2–3 ключевые работы.
+- **Описание данных** — характеристики корпуса NLTK Movie Reviews.
+- **Предобработка** — каждый шаг с примерами.
+- **Модели** — описание каждой модели, почему выбраны.
+- **Результаты** — таблицы метрик, все 14 графиков, 8 таблиц.
+- **Анализ ошибок** — конкретные примеры с объяснениями.
+- **Обсуждение** — почему TF-IDF лучше BoW, почему SVM лучше NB, ограничения.
+- **Рекомендации** — как применить для анализа отзывов на казахстанских платформах (Kaspi, 2GIS).
+- **Заключение**.
+
+### B. Presentation (10–15 slides)
+Including:
+- Постановка задачи
+- Word Clouds (pos vs neg)
+- Таблица сравнения моделей
+- Confusion Matrix лучшей модели
+- Топ-слова маркеры (коэффициенты модели)
+- Примеры ошибок (ирония / сарказм)
+- Выводы
+
+### C. Python Notebook / Code
+- Полностью воспроизводимый Jupyter notebook.
+- Все графики и таблицы из списка выше.
+- Датасет скачивается автоматически внутри ноутбука (NLTK download).
 
 ## 7. Possible Advanced Extensions
-- Aspect-based sentiment analysis (identifying sentiment for specific product features).
-- Multilingual sentiment analysis (e.g., analyzing mixed Kazakh/Russian text).
-- Real-time sentiment tracking dashboard.
+
+- **Word2Vec / GloVe Embeddings:** Заменить TF-IDF на обученные word embeddings.
+- **BERT / DistilBERT:** Fine-tuning трансформерной модели (если есть GPU).
+- **Aspect-Based Sentiment:** Определять тональность к конкретным аспектам (сюжет, актёрская игра, музыка).
+- **Мультиязычный анализ:** Применить подход к казахско-русским отзывам (Kaspi, 2GIS).
+- **Real-time Dashboard:** Streamlit-приложение для анализа тональности вводимого текста.
 
 ## 8. Suggested Topics to Analyze
-- Public reaction to a new government policy or service.
-- Customer reviews for local businesses or apps (e.g., Kaspi, Yandex Go).
-- Movie or product reviews.
+
+- **Movie Reviews** (используем в этом кейсе — NLTK corpus).
+- Отзывы клиентов Kaspi Bank (если собрать данные).
+- Комментарии в Telegram-каналах о городских проблемах.
+- Отзывы о ресторанах и кафе в 2GIS.
 
 ## 9. Evaluation Criteria
-- Quality of text preprocessing and feature engineering.
-- Correct application and tuning of NLP models.
-- Meaningfulness of the extracted business or social insights.
+
+| Критерий | Вес | Что оценивается |
+|---|---|---|
+| Качество предобработки текста | 15% | Токенизация, лемматизация, удаление стоп-слов |
+| Визуализация текста (Word Clouds, Top words) | 10% | Наглядность, аккуратность |
+| Количество и разнообразие моделей | 20% | ≥ 3 модели × 2 метода векторизации |
+| Метрики и Confusion Matrix | 15% | Accuracy, F1, Classification Report |
+| Анализ признаков (коэффициенты модели) | 10% | Топ-слова маркеры pos/neg |
+| Анализ ошибок | 15% | Конкретные примеры с объяснением |
+| Эксперимент с предобработкой | 10% | Влияние каждого шага на Accuracy |
+| Оформление и выводы | 5% | Чистота кода, выводы |
+
+---
+
+**Итого ожидаемых визуализаций: ≥ 14 графиков + 8 таблиц.**
