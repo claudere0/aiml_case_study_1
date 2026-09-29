@@ -1,51 +1,288 @@
 # Case Study Task 4: Fraud Detection in Financial Transactions
+## Обнаружение мошенничества в финансовых транзакциях
+
+**Курс:** CSE-2506M · **Данные:** Синтетический несбалансированный датасет (`sklearn.datasets.make_classification`)
+
+---
 
 ## 1. Background
-With the rise of digital banking and e-commerce, financial fraud has become a multi-billion dollar problem. Fraudulent transactions are rare compared to legitimate ones, creating a highly imbalanced data problem. Identifying these fraudulent activities in real-time is crucial for financial institutions to protect their customers.
+
+Финансовое мошенничество — одна из самых серьёзных угроз цифровой экономики. По данным Nilson Report, мировые потери от мошенничества с банковскими картами превышают $30 млрд в год. Главная техническая сложность задачи — **экстремальный дисбаланс классов**: на каждую мошенническую транзакцию приходится 100–1000 легитимных. Модель, которая всегда говорит «не фрод», будет иметь Accuracy > 99%, но при этом пропустит все реальные атаки.
+
+В этом кейсе мы исследуем проблему несбалансированных данных (imbalanced classification) на примере детекции мошеннических финансовых транзакций. Мы покажем, почему Accuracy — бесполезная метрика для этой задачи, и как правильно оценивать модели с помощью Precision, Recall, F1 и Precision-Recall AUC.
 
 ## 2. Objective of the Case Study
-Your task is to develop a robust machine learning classification model to detect fraudulent financial transactions while minimizing false positives (legitimate transactions flagged as fraud).
+
+Разработать систему обнаружения мошенничества, которая максимизирует обнаружение фрода (Recall) при минимизации ложных блокировок карт клиентов (False Positives).
+
+**Key objectives:**
+- Сгенерировать реалистичный несбалансированный датасет (1% фрод, 99% легитимные).
+- Провести EDA: распределение классов, признаков, корреляции.
+- Применить и сравнить **минимум 3 техники** работы с дисбалансом: baseline (без балансировки), class_weight, SMOTE.
+- Обучить и сравнить **минимум 3 модели**: Logistic Regression, Random Forest, Isolation Forest.
+- Оценить с помощью Precision, Recall, F1, Confusion Matrix и Precision-Recall Curve.
+- Провести анализ порогов (threshold tuning): как сдвиг порога влияет на Precision/Recall trade-off.
+- Проанализировать feature importance.
 
 ## 3. Research Questions
-- How can we effectively handle highly imbalanced datasets in machine learning?
-- Which classification algorithms provide the best balance between precision and recall for fraud detection?
-- What transaction features (amount, time, location, frequency) are most indicative of fraud?
-- How do false positives impact customer experience, and how can the model be tuned to optimize this trade-off?
+
+- Почему стандартная метрика Accuracy неприменима для несбалансированных данных?
+- Какие техники балансировки (class_weight, SMOTE, undersampling) лучше работают для детекции фрода?
+- Какие модели (линейные vs ансамблевые vs anomaly detection) показывают лучший баланс Precision/Recall?
+- Какие признаки транзакций наиболее информативны для отделения фрода от легитимных операций?
+- Как выбор порога (threshold) влияет на бизнес-метрики: стоимость пропущенного фрода vs стоимость ложной блокировки?
+- Может ли Isolation Forest (unsupervised) конкурировать с supervised моделями?
 
 ## 4. Data Requirements
-**Data to collect:**
-- Public financial transaction datasets (e.g., Credit Card Fraud Detection dataset on Kaggle).
-- Variables typically include: Transaction Amount, Time, Anonymized Features (V1-V28), and Class Label (0 for Normal, 1 for Fraud).
+
+### 4.1 Генерация синтетического датасета
+
+Используем `sklearn.datasets.make_classification` для создания контролируемого датасета:
+
+| Параметр | Значение | Обоснование |
+|---|---|---|
+| `n_samples` | 10 000 | Достаточно для обучения, быстро выполняется |
+| `n_features` | 15 | Имитация анонимизированных признаков (V1–V15) |
+| `n_informative` | 6 | Реально полезные фичи |
+| `n_redundant` | 2 | Линейные комбинации информативных |
+| `n_clusters_per_class` | 2 | Фрод бывает разным (несколько типов схем) |
+| `weights` | [0.99, 0.01] | 1% фрод, 99% легитимные |
+| `flip_y` | 0.01 | Небольшой шум в метках (как в реальных данных) |
+| `random_state` | 42 | Воспроизводимость |
+
+### 4.2 Дополнительные синтетические признаки
+
+После генерации добавим «осмысленные» колонки:
+
+| Признак | Описание | Как генерируем |
+|---|---|---|
+| `amount` | Сумма транзакции (\$) | Lognormal distribution; фрод — более высокие суммы |
+| `hour` | Час транзакции (0–23) | Uniform; фрод чаще ночью (23:00–04:00) |
+| `is_foreign` | Иностранная транзакция (0/1) | Bernoulli; фрод чаще из-за рубежа |
 
 ## 5. Methodology
-### 5.1 Exploratory Data Analysis & Preprocessing
-- Analyze class distribution and feature correlations.
-- Standardize or normalize numerical features (e.g., Transaction Amount).
-- Apply data balancing techniques (SMOTE, ADASYN, or Undersampling).
-### 5.2 Model Building
-- Train models such as Logistic Regression, Random Forest, XGBoost, or Isolation Forest.
-### 5.3 Evaluation
-- Use specialized metrics for imbalanced data: Precision-Recall AUC, F1-Score, and Confusion Matrix. Do not rely solely on accuracy.
+
+### 5.1 Exploratory Data Analysis (EDA)
+
+**Шаги:**
+1. Вывести shape, info, describe датасета.
+2. Подсчитать баланс классов и рассчитать Imbalance Ratio (IR = majority / minority).
+3. Изучить распределения признаков для обоих классов.
+4. Посчитать корреляции между признаками.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 1 | Баланс классов: количество и % | `value_counts` | Показать масштаб дисбаланса |
+| Рис. 1 | Pie chart / Bar chart: распределение классов | `plt.pie` / `plt.bar` | Визуальный шок: 99% vs 1% |
+| Рис. 2 | Boxplot: `amount` по классам (фрод vs легитимные) | `sns.boxplot` | Отличия в суммах транзакций |
+| Рис. 3 | Гистограмма: час транзакции по классам | `sns.histplot(hue)` | Временной паттерн фрода |
+| Рис. 4 | Тепловая карта корреляций (heatmap) | `sns.heatmap` | Мультиколлинеарность |
+| Рис. 5 | Pairplot для 4 наиболее коррелированных признаков | `sns.pairplot(hue)` | Разделимость классов |
+
+### 5.2 Preprocessing
+
+**Шаги:**
+1. **Стандартизация** (StandardScaler) признаков `amount` и анонимизированных фичей V1–V15.
+2. **Train-Test Split:** 80/20, `stratify=y`, `random_state=42`.
+   - Стратификация обязательна, иначе в test-выборке может не оказаться фрода!
+3. **Fit scaler на train**, transform на train и test (no data leakage).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 2 | Количество классов в train и test после split | DataFrame | Подтвердить стратификацию |
+
+### 5.3 Baseline Model (без балансировки)
+
+**Шаги:**
+1. Обучить `LogisticRegression()` и `RandomForestClassifier()` **без** каких-либо техник балансировки.
+2. Показать, что Accuracy высокая (> 99%), но Recall для фрода — катастрофически низкий.
+3. **Вывод:** Accuracy бесполезна для imbalanced data.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 3 | Classification Report (baseline) | `classification_report` | Показать: Accuracy 99%, но Recall фрода ~30% |
+| Рис. 6 | Confusion Matrix (baseline) | `sns.heatmap` | Наглядно: модель пропускает большинство фрода |
+
+### 5.4 Handling Class Imbalance (Техники балансировки)
+
+#### Техника 1: Class Weight (встроенная)
+- `class_weight='balanced'` в Logistic Regression и Random Forest.
+- Модель автоматически «штрафует» за ошибки на миноритарном классе.
+
+#### Техника 2: SMOTE (Synthetic Minority Oversampling)
+- Генерирует синтетические примеры фрода путём интерполяции между существующими.
+- `from imblearn.over_sampling import SMOTE` (библиотека `imbalanced-learn`).
+- Применять **только к train** (ни в коем случае не к test — это data leakage!).
+
+#### Техника 3: Random Undersampling
+- Случайно удаляем примеры мажоритарного класса до баланса.
+- Теряем данные, но иногда работает лучше SMOTE.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Рис. 7 | Bar chart: размер train-выборки до и после SMOTE | `plt.bar` | Показать, сколько точек сгенерировал SMOTE |
+| Табл. 4 | Баланс классов после каждой техники | DataFrame | Сравнение подходов |
+
+### 5.5 Model Training (Обучение моделей)
+
+#### Модель 1: Logistic Regression
+- С `class_weight='balanced'`.
+- Линейная модель, быстрая, интерпретируемая.
+
+#### Модель 2: Random Forest
+- `n_estimators=200`, `class_weight='balanced'`, `random_state=42`.
+- Ансамбль деревьев, устойчив к шуму.
+
+#### Модель 3: Isolation Forest (Anomaly Detection)
+- `contamination=0.01` (ожидаемая доля аномалий).
+- **Unsupervised** подход: не использует метки классов!
+- Ищет точки, которые «легко изолировать» (аномалии).
+
+**Всего обучаем 5–6 комбинаций:** (LR + class_weight) + (LR + SMOTE) + (RF + class_weight) + (RF + SMOTE) + (Isolation Forest).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 5 | Сводная таблица: модель × техника → Precision, Recall, F1 (fraud class) | DataFrame | Главная таблица сравнения |
+| Рис. 8 | Grouped bar chart: Recall для каждой комбинации | `plt.bar` | Какая модель ловит больше фрода |
+| Рис. 9 | Grouped bar chart: Precision для каждой комбинации | `plt.bar` | Какая модель реже блокирует клиентов зря |
+
+### 5.6 Evaluation (Детальная оценка лучшей модели)
+
+**Метрики:**
+- **Precision (Fraud)** — из всех помеченных как «фрод», сколько реально фрод.
+- **Recall (Fraud)** — из всех реальных фродов, сколько модель поймала.
+- **F1 (Fraud)** — баланс между Precision и Recall.
+- **PR-AUC** — площадь под Precision-Recall кривой (лучше ROC-AUC для imbalanced data).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 6 | Classification Report (лучшая модель) | `classification_report` | Полные метрики |
+| Рис. 10 | Confusion Matrix (лучшая модель) | `sns.heatmap(annot=True)` | TP/FP/FN/TN с числами |
+| Рис. 11 | Precision-Recall Curve | `PrecisionRecallDisplay` | PR-AUC, визуализация trade-off |
+| Рис. 12 | ROC Curve (для сравнения) | `RocCurveDisplay` | AUC-ROC, сравнение с PR-AUC |
+
+### 5.7 Threshold Tuning (Настройка порога)
+
+**Шаги:**
+1. По умолчанию модель использует порог 0.5 для предсказания класса.
+2. Пройти по порогам от 0.1 до 0.9 с шагом 0.05.
+3. Для каждого порога рассчитать Precision и Recall.
+4. Найти «оптимальный» порог — максимизирующий F1 (или определённый бизнес-правилами).
+
+**Бизнес-логика:** Стоимость пропущенного фрода = средний размер мошеннической транзакции. Стоимость ложной блокировки = потеря клиента + call-центр. Оптимальный порог зависит от соотношения этих стоимостей.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Рис. 13 | Precision и Recall vs Threshold (двойной линейный график) | `plt.plot` | Визуальный выбор оптимального порога |
+| Рис. 14 | F1-score vs Threshold | `plt.plot` | Пик = оптимальный порог |
+
+### 5.8 Feature Importance
+
+**Шаги:**
+1. Для Random Forest — встроенная `feature_importances_`.
+2. Permutation Importance на тестовой выборке.
+3. Для Logistic Regression — абсолютные значения коэффициентов.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Рис. 15 | Horizontal bar chart: Feature Importance (Random Forest, top-10) | `plt.barh` | Какие фичи ловят фрод |
+| Рис. 16 | Permutation Importance (top-10) | `plt.barh` | Проверка: совпадает ли с встроенной |
+
+### 5.9 Business Impact Analysis (Оценка бизнес-эффекта)
+
+**Шаги:**
+1. Рассчитать на тестовой выборке:
+   - Сколько **мошеннических долларов** модель спасла (True Positives × amount).
+   - Сколько **мошеннических долларов** пропустила (False Negatives × amount).
+   - Сколько **легитимных транзакций** заблокировала зря (False Positives).
+2. Рассчитать **Net Savings** = Saved fraud - Cost of false blocks.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 7 | Бизнес-метрики: спасённые деньги, пропущенный фрод, ложные блокировки | DataFrame | Реальный бизнес-эффект |
+| Рис. 17 | Stacked bar: Saved vs Missed vs False Blocks (\$) | `plt.bar(stacked)` | Визуализация финансового эффекта |
 
 ## 6. Expected Deliverables
-**A. Written Report (8–15 pages)**
-- Context of financial fraud, techniques for imbalanced data, model architecture, and results.
-**B. Presentation (10–15 slides)**
-- The challenge of imbalanced data, chosen strategy, performance metrics, and business impact.
-**C. Python Notebook / Code**
-- Code demonstrating EDA, resampling techniques, model training, and threshold tuning.
+
+### A. Written Report (8–15 pages)
+Should include:
+- **Введение** — масштаб проблемы финансового фрода, почему Accuracy не работает.
+- **Обзор литературы** — SMOTE, class weighting, anomaly detection (2–3 ключевые работы).
+- **Описание данных** — как и зачем генерируем синтетический датасет.
+- **EDA** — распределения, корреляции, баланс классов.
+- **Техники балансировки** — описание SMOTE, class_weight, undersampling с примерами.
+- **Модели** — описание каждой модели, гиперпараметры.
+- **Результаты** — сводная таблица, все 17 графиков, 7 таблиц.
+- **Threshold tuning** — выбор оптимального порога с обоснованием.
+- **Бизнес-анализ** — денежный эффект модели.
+- **Обсуждение** — trade-off Precision vs Recall, supervised vs unsupervised.
+- **Рекомендации** — как внедрить в реальную систему антифрода.
+- **Заключение**.
+
+### B. Presentation (10–15 slides)
+Including:
+- Масштаб проблемы (глобальные потери от фрода)
+- Pie chart: 99% vs 1%
+- Почему Accuracy не работает (Confusion Matrix baseline)
+- Техники балансировки (SMOTE visualization)
+- Сводная таблица метрик
+- Confusion Matrix лучшей модели
+- Precision-Recall Curve
+- Threshold tuning graph
+- Бизнес-эффект ($)
+- Выводы
+
+### C. Python Notebook / Code
+- Полностью воспроизводимый Jupyter notebook.
+- Все графики и таблицы из списка выше.
+- Датасет генерируется автоматически (не нужно ничего скачивать).
 
 ## 7. Possible Advanced Extensions
-- Implementing anomaly detection algorithms (Autoencoders, One-Class SVM).
-- Graph-based analysis for detecting fraud rings or networks.
-- Developing a simulated streaming pipeline for real-time fraud scoring.
+
+- **Autoencoder (Deep Learning):** Обучить нейросеть на легитимных транзакциях, фрод = high reconstruction error.
+- **XGBoost + Bayesian Hyperparameter Tuning:** Более мощная ансамблевая модель с подбором параметров.
+- **Graph-Based Fraud Detection:** Построить граф транзакций, искать подозрительные кластеры и кольцевые схемы.
+- **Real-Time Scoring Pipeline:** Симулировать поток транзакций с помощью Kafka / Streamlit и скорить в реальном времени.
+- **Explainability (LIME / SHAP):** Для каждой заблокированной транзакции объяснить, «почему модель считает это фродом».
 
 ## 8. Suggested Domains to Analyze
-- Credit card transactions.
-- Peer-to-peer (P2P) mobile payments.
-- E-commerce click fraud or chargebacks.
+
+- **Банковские карты** (наш основной кейс — синтетический аналог).
+- Peer-to-peer (P2P) мобильные платежи (Kaspi, PayPal).
+- E-commerce: click fraud, chargebacks.
+- Страховое мошенничество.
 
 ## 9. Evaluation Criteria
-- Justification of metrics used (focus on Recall, Precision, PR-AUC).
-- Appropriate handling of class imbalance.
-- Model interpretability and feature importance analysis.
+
+| Критерий | Вес | Что оценивается |
+|---|---|---|
+| Понимание проблемы дисбаланса | 10% | Объяснение, почему Accuracy неприменима |
+| EDA и визуализация | 15% | ≥ 5 графиков EDA, аккуратность |
+| Техники балансировки | 15% | ≥ 2 техники (class_weight + SMOTE), правильное применение |
+| Количество и разнообразие моделей | 15% | ≥ 3 модели (supervised + unsupervised) |
+| Метрики и Confusion Matrix | 15% | Precision, Recall, F1, PR-AUC, правильная интерпретация |
+| Threshold tuning | 10% | График Precision/Recall vs threshold, обоснование выбора |
+| Feature importance | 10% | ≥ 2 метода, интерпретация |
+| Бизнес-анализ | 10% | Денежный эффект в долларах |
+
+---
+
+**Итого ожидаемых визуализаций: ≥ 17 графиков + 7 таблиц.**
