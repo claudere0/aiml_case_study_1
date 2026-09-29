@@ -1,51 +1,255 @@
 # Case Study Task 2: Predicting Air Quality and Pollution Levels in Urban Areas
+## Прогнозирование качества воздуха и уровней загрязнения в городских районах
+
+**Курс:** CSE-2506M · **Город:** Павлодар · **Данные:** `data/*.csv` (PM2.5, PM10, NO₂, SO₂, CO, H₂S, O₃), `data/weather_pavlodar_daily.csv`
+
+---
 
 ## 1. Background
-With rapid urbanization and industrialization, air quality forecasting has become essential for public health and city planning. Predictive models allow authorities to issue early warnings and take preventive measures, mitigating the impact of severe pollution episodes.
+
+Прогнозирование качества воздуха — критически важная задача для систем раннего оповещения населения. Промышленные города Казахстана (Павлодар, Темиртау, Усть-Каменогорск) ежегодно сталкиваются с эпизодами экстремального загрязнения в отопительный сезон. Если модель способна за 1–3 дня предсказать превышение нормативов ВОЗ (PM2.5 > 15 µg/m³ в суточном среднем), городские службы могут предупредить жителей и ограничить промышленные выбросы.
+
+В Task 1 мы провели разведочный анализ исторических данных по Павлодару. Теперь мы используем те же данные для построения предиктивных моделей.
 
 ## 2. Objective of the Case Study
-Your task is to develop machine learning or statistical models to forecast air pollution levels (e.g., PM2.5, PM10, NO2) in selected cities, evaluating their accuracy and applicability for real-time monitoring.
+
+Разработать и сравнить несколько моделей машинного обучения для прогнозирования суточного среднего PM2.5 на горизонте 1 день (t+1), оценить их точность и практическую применимость.
+
+**Key objectives:**
+- Подготовить временной ряд суточных средних PM2.5 по городу.
+- Сконструировать информативные признаки (feature engineering): лаги, скользящие средние, календарные и погодные переменные.
+- Обучить и сравнить **минимум 3 модели**: baseline (Naive / Persistence), Linear Regression, Random Forest.
+- Оценить модели с помощью MAE, RMSE и R², визуализировать прогнозы.
+- Проанализировать важность признаков (feature importance / permutation importance).
+- Оценить практическую полезность модели: «сколько дней превышения она предупредит заранее?».
 
 ## 3. Research Questions
-- Which time-series forecasting models (ARIMA, Prophet, LSTM) perform best for air quality prediction?
-- What are the most significant features (meteorological data, historical pollution, time of day) for accurate forecasting?
-- How far in advance can pollution spikes be reliably predicted?
-- How can these predictions be integrated into a smart city framework?
+
+- Можно ли предсказать суточное среднее PM2.5 в Павлодаре на основе данных предыдущих дней и погоды?
+- Какие признаки (лаги загрязнения, температура, скорость ветра, день недели) вносят наибольший вклад в точность прогноза?
+- Какой горизонт прогноза (1 день, 3 дня, 7 дней) даёт приемлемую точность?
+- Как соотносятся простые модели (Linear Regression) и ансамблевые (Random Forest) на данных Павлодара?
+- Может ли модель корректно предсказать «опасные дни» (PM2.5 > 15 µg/m³)?
 
 ## 4. Data Requirements
-**Data to collect:**
-- Historical air quality data (PM2.5, PM10, NO2, SO2, CO, O3) from sources like Kazhydromet, AirKaz.org, or Kaggle.
-- Weather data (temperature, wind speed/direction, humidity, precipitation).
-- Timestamp features (hour, day of week, month).
+
+### 4.1 Основные данные (уже подготовлены в Task 1)
+
+| Файл | Описание | Период |
+|---|---|---|
+| `data/pm2_5.csv` | Часовые измерения PM2.5, 5 постов Казгидромета | 2021–2026 |
+| `data/pm10.csv` | Часовые измерения PM10 | 2021–2026 |
+| `data/no2.csv` | Часовые измерения NO₂ | 2021–2026 |
+| `data/so2.csv` | Часовые измерения SO₂ | 2021–2026 |
+| `data/co.csv` | Часовые измерения CO | 2021–2026 |
+| `data/h2s.csv` | Часовые измерения H₂S | 2021–2026 |
+| `data/o3.csv` | Часовые измерения O₃ | 2021–2026 |
+| `data/weather_pavlodar_daily.csv` | Суточная погода (температура, ветер, влажность, осадки) | 2021–2026 |
+
+### 4.2 Целевая переменная (Target)
+- **Суточное среднее PM2.5 по всем постам города** (µg/m³), рассчитанное в Task 1.
+
+### 4.3 Конструируемые признаки (Features)
+
+| Группа | Признаки | Описание |
+|---|---|---|
+| **Лаги PM2.5** | `pm25_lag1`, `pm25_lag2`, `pm25_lag3`, `pm25_lag7` | Значения PM2.5 за вчера, позавчера, 3 и 7 дней назад |
+| **Скользящие средние** | `pm25_ma3`, `pm25_ma7`, `pm25_ma14` | Среднее за 3, 7, 14 дней |
+| **Скользящие std** | `pm25_std7` | Волатильность за 7 дней |
+| **Другие загрязнители** | `no2_lag1`, `so2_lag1`, `co_lag1` | Лаги других газов (подсказка об индустриальной активности) |
+| **Погода** | `temp_mean`, `wind_speed`, `humidity`, `precip` | Суточная погода из Open-Meteo |
+| **Погодные лаги** | `temp_lag1`, `wind_lag1` | Погода вчера |
+| **Календарь** | `month`, `dow` (day of week), `is_heating` | Месяц, день недели, флаг отопительного сезона (окт–апр) |
+| **Тренд** | `day_of_year`, `year_frac` | Порядковый номер дня, дробный год |
 
 ## 5. Methodology
+
 ### 5.1 Data Collection & Preprocessing
-- Handle missing values (imputation, interpolation) and outliers.
-- Merge air quality data with meteorological datasets.
-### 5.2 Model Development
-- Split data into training and testing sets.
-- Train baseline models (e.g., Linear Regression, ARIMA).
-- Train advanced models (e.g., Random Forest, XGBoost, LSTM).
-### 5.3 Evaluation
-- Use metrics like MAE, RMSE, and R-squared to evaluate model performance.
-- Perform feature importance analysis.
+
+**Шаги:**
+1. Загрузить CSV-файлы загрязнителей, отфильтровать по городу Павлодар.
+2. Агрегировать часовые данные в **суточные средние** по всем постам (как в Task 1).
+3. Объединить (merge) суточные загрязнители с суточной погодой по дате.
+4. Обработать пропуски:
+   - Если пропущено < 3 последовательных дней → **линейная интерполяция**.
+   - Если пропущено ≥ 3 дней → оставить NaN, строки с NaN-таргетом будут удалены.
+5. Удалить дни с менее чем 6 часами наблюдений (ненадёжное суточное среднее).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 1 | Описательная статистика целевой переменной | `df.describe()` | Понимание распределения PM2.5 |
+| Рис. 1 | Гистограмма распределения PM2.5 + log-шкала | `plt.hist` / `sns.histplot` | Оценить скошенность, выбросы |
+| Рис. 2 | Временной ряд PM2.5 (суточные средние) с подсветкой зим | `plt.plot` + `axvspan` | Визуальная проверка сезонности |
+
+### 5.2 Feature Engineering
+
+**Шаги:**
+1. Создать лаги (shift) PM2.5 и других загрязнителей на 1, 2, 3, 7 дней.
+2. Создать скользящие средние и стандартные отклонения (rolling).
+3. Извлечь календарные признаки из DatetimeIndex: `month`, `dayofweek`, `is_heating_season`.
+4. Добавить погодные признаки (температура, ветер) и их лаги.
+5. Удалить строки с NaN после создания лагов (первые 14 строк).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 2 | Матрица корреляций всех признаков с таргетом | `df.corr()` | Выбор наиболее коррелированных фичей |
+| Рис. 3 | Тепловая карта корреляций (heatmap) | `sns.heatmap` | Визуализация мультиколлинеарности |
+| Рис. 4 | Scatter plots: PM2.5 vs температура, PM2.5 vs ветер | `sns.scatterplot` | Нелинейные зависимости |
+
+### 5.3 Train-Test Split
+
+- **Временной (хронологический) split**, а не random! Иначе будет data leakage.
+- **Train:** первые 80% данных по дате.
+- **Test:** последние 20% данных по дате.
+- Никакой информации из будущего не попадает в обучение.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Рис. 5 | Временной ряд PM2.5 с вертикальной линией split | `plt.axvline` | Визуальная граница train/test |
+
+### 5.4 Model Development
+
+#### Модель 0: Naive Baseline (Persistence)
+- **Прогноз = значение вчера** (`pm25_lag1`). Никакого ML, просто «завтра будет как вчера».
+- Это нижняя граница: любая модель должна бить baseline.
+
+#### Модель 1: Linear Regression
+- Все сконструированные признаки.
+- Стандартизация (StandardScaler) перед обучением.
+
+#### Модель 2: Random Forest Regressor
+- `n_estimators=200`, `max_depth=12`, `random_state=42`.
+- Не требует стандартизации.
+
+#### Модель 3 (Advanced): Gradient Boosting (XGBoost / HistGradientBoosting)
+- Если установлен XGBoost; иначе `sklearn.ensemble.HistGradientBoostingRegressor`.
+- Подбор гиперпараметров через `TimeSeriesSplit` cross-validation (3–5 фолдов).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 3 | Сводная таблица метрик всех моделей (MAE, RMSE, R²) | DataFrame | Быстрое сравнение |
+| Рис. 6 | Барчарт: MAE для каждой модели | `plt.bar` | Наглядное сравнение моделей |
+
+### 5.5 Evaluation & Diagnostics
+
+**Метрики:**
+- **MAE** (Mean Absolute Error) — средняя абсолютная ошибка, в µg/m³.
+- **RMSE** (Root Mean Squared Error) — штрафует большие ошибки сильнее.
+- **R²** (R-squared) — доля объяснённой дисперсии.
+
+**Диагностика:**
+- График «predicted vs actual» (scatter): точки должны лежать вдоль диагонали.
+- График «residuals vs predicted»: остатки не должны иметь паттернов.
+- Временной ряд: реальные значения (синий) vs прогнозы лучшей модели (красный пунктир).
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Рис. 7 | Actual vs Predicted scatter plot (лучшая модель) | `plt.scatter` | Проверка калибровки |
+| Рис. 8 | Residual plot (остатки vs предсказания) | `plt.scatter` | Поиск систематических ошибок |
+| Рис. 9 | Временной ряд: actual vs predicted на тестовой выборке | `plt.plot` | Визуальная оценка прогноза |
+| Рис. 10 | Распределение ошибок (гистограмма residuals) | `plt.hist` | Нормальность остатков |
+
+### 5.6 Feature Importance
+
+- **Permutation Importance** (перемешиваем один признак, смотрим насколько упал R²).
+- Для Random Forest дополнительно: встроенная `feature_importances_`.
+- Топ-10 самых важных признаков.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Рис. 11 | Horizontal bar chart: Permutation Importance (топ-10) | `plt.barh` | Какие фичи влияют больше всего |
+| Рис. 12 | Feature importance (Random Forest, встроенная) | `plt.barh` | Сравнение с permutation |
+
+### 5.7 Практическая полезность: прогноз «опасных дней»
+
+- Превращаем задачу регрессии в **бинарную классификацию**: PM2.5 > 15 µg/m³ → «опасный день».
+- Используем порог на предсказаниях лучшей модели.
+- Считаем **Precision**, **Recall**, **F1-score** для класса «опасный день».
+- Строим **Confusion Matrix**: сколько опасных дней модель предсказала верно, сколько пропустила, сколько ложных тревог.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 4 | Classification Report (Precision, Recall, F1) | `classification_report` | Качество бинарного прогноза |
+| Рис. 13 | Confusion Matrix (Safe / Hazardous) | `sns.heatmap` | Визуализация TP/FP/FN/TN |
+
+### 5.8 Горизонт прогноза: 1, 3, 7 дней
+
+- Повторяем лучшую модель для горизонтов t+1, t+3, t+7 (сдвигая таргет).
+- Строим график деградации MAE с ростом горизонта.
+
+**Ожидаемые таблицы и графики:**
+
+| # | Визуализация | Тип | Назначение |
+|---|---|---|---|
+| Табл. 5 | MAE / R² для горизонтов 1, 3, 7 дней | DataFrame | Как быстро «портится» прогноз |
+| Рис. 14 | Линейный график MAE vs горизонт | `plt.plot` | Визуализация деградации |
 
 ## 6. Expected Deliverables
-**A. Written Report (8–15 pages)**
-- Introduction, Literature Review, Methodology, Results, and Conclusion.
-**B. Presentation (10–15 slides)**
-- Key findings, model comparisons, and proposed implementation.
-**C. Python Notebook / Code**
-- Documented code for EDA, data preprocessing, and model training/evaluation.
+
+### A. Written Report (8–15 pages)
+Should include:
+- **Введение** — контекст задачи прогнозирования для Павлодара.
+- **Обзор литературы** — ARIMA, Prophet, ML-модели для прогноза AQ (2–3 ключевые статьи).
+- **Описание данных** — структура, покрытие, пропуски.
+- **Инженерия признаков** — таблица всех созданных фичей с обоснованием.
+- **Модели** — описание каждой модели, гиперпараметры.
+- **Результаты** — таблицы метрик, все 14 графиков.
+- **Обсуждение** — почему Random Forest лучше/хуже Baseline, какие признаки важнее.
+- **Рекомендации** — как встроить модель в систему оповещения.
+- **Заключение**.
+
+### B. Presentation (10–15 slides)
+Including:
+- Постановка задачи (зачем прогнозировать?)
+- Описание признаков (Feature Engineering)
+- Сравнение моделей (таблица + bar chart)
+- Лучшая модель: actual vs predicted
+- Confusion Matrix для «опасных дней»
+- Выводы и применимость
+
+### C. Python Notebook / Code
+- Полностью воспроизводимый Jupyter notebook.
+- Все графики и таблицы из списка выше.
 
 ## 7. Possible Advanced Extensions
-- Incorporating traffic density data for better predictions.
-- Creating a real-time prediction dashboard using Streamlit or Dash.
+
+- **Prophet / ARIMA:** Сравнить с классическими методами временных рядов.
+- **LSTM:** Рекуррентная нейросеть для многошагового прогноза.
+- **Multi-target:** Прогноз не только PM2.5, но и PM10 + NO₂ одновременно.
+- **Streamlit Dashboard:** Интерактивная web-панель с прогнозом на завтра.
+- **SHAP Values:** Более глубокий анализ вклада каждого признака для каждого прогноза.
 
 ## 8. Suggested Cities to Analyze
-- Almaty, Astana, Pavlodar, Karaganda.
+
+- **Павлодар** (наш основной город — промышленный, ТЭЦ, алюминиевый завод)
+- Для сравнения (если есть данные): Караганда, Экибастуз, Аксу.
 
 ## 9. Evaluation Criteria
-- Accuracy and robustness of the predictive models.
-- Data preprocessing quality.
-- Depth of analysis and feature engineering.
+
+| Критерий | Вес | Что оценивается |
+|---|---|---|
+| Качество feature engineering | 20% | Обоснованность и разнообразие признаков |
+| Корректность split (хронологический) | 10% | Нет data leakage |
+| Количество и качество моделей | 20% | Минимум 3 модели, корректные гиперпараметры |
+| Метрики и диагностика | 15% | MAE, RMSE, R², residual plots |
+| Визуализации | 15% | ≥ 14 графиков, аккуратность, подписи |
+| Feature importance анализ | 10% | Интерпретация результатов |
+| Практическая применимость | 10% | Confusion matrix для «опасных дней» |
+
+---
+
+**Итого ожидаемых визуализаций: ≥ 14 графиков + 5 таблиц.**
